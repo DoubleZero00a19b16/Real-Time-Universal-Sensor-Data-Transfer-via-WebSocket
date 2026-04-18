@@ -1,0 +1,61 @@
+@prj1_HostAddress = http://localhost:5295
+
+GET {{prj1_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
+
+GET {{prj1_HostAddress}}/pizza/
+Accept: application/json
+
+###
+
+GET {{prj1_HostAddress}}/pizza/1
+Accept: application/json
+
+###
+
+GET {{prj1_HostAddress}}/pizza/2
+Accept: application/json
+
+###
+
+POST {{prj1_HostAddress}}/pizza/
+Content-Type: application/json
+
+{
+    "name": "Hawaii",
+    "isGlutenFree": false
+}
+
+###
+
+PUT {{prj1_HostAddress}}/pizza/3
+Content-Type: application/json
+
+{
+    "id": 3,
+    "name": "Hawaiian",
+    "isGlutenFree": false
+}
+
+###
+
+DELETE {{prj1_HostAddress}}/pizza/3
+
+###
+
+GET {{prj1_HostAddress}}/test/
+Accept: application/json
+
+###
+
+GET {{prj1_HostAddress}}/test/1
+Accept: application/json
+
+###
+
+PUT {{prj1_HostAddress}}/test/1/toggle
+
+###
+

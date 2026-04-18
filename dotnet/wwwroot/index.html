@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Light Control</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0c0f; --panel: #111418; --border: #1e2530;
+    --on-color: #f5c842; --on-glow: #f5c84266;
+    --off-color: #2a3040; --text: #8a9bb0; --text-bright: #c8d8e8;
+    --red: #e05050; --green: #50e08a;
+  }
+  body { background: var(--bg); font-family: 'Rajdhani', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  body::before { content: ''; position: fixed; inset: 0; background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px); background-size: 40px 40px; opacity: 0.4; pointer-events: none; }
+  body::after { content: ''; position: fixed; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px); pointer-events: none; z-index: 100; }
+
+  .container { position: relative; display: flex; flex-direction: column; align-items: center; gap: 48px; }
+
+  .header { text-align: center; letter-spacing: 0.3em; }
+  .header h1 { font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; color: var(--text); text-transform: uppercase; margin-bottom: 4px; }
+  .header .id { font-family: 'Share Tech Mono', monospace; font-size: 0.55rem; color: var(--border); letter-spacing: 0.5em; }
+
+  /* WS connection badge */
+  .ws-badge { display: flex; align-items: center; gap: 8px; font-family: 'Share Tech Mono', monospace; font-size: 0.6rem; letter-spacing: 0.2em; color: var(--text); }
+  .ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--off-color); transition: background 0.4s, box-shadow 0.4s; }
+  .ws-dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .ws-dot.error { background: var(--red); box-shadow: 0 0 8px var(--red); }
+
+  /* Bulb */
+  .light-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
+  .light-ring { position: absolute; border-radius: 50%; border: 1px solid var(--off-color); transition: border-color 0.6s, box-shadow 0.6s; }
+  .light-ring.r1 { width: 220px; height: 220px; }
+  .light-ring.r2 { width: 280px; height: 280px; opacity: 0.5; }
+  .light-ring.r3 { width: 340px; height: 340px; opacity: 0.25; }
+  .light-bulb { position: relative; z-index: 2; width: 140px; height: 140px; border-radius: 50%; background: radial-gradient(circle at 38% 35%, #2a3040 0%, #151a22 60%, #0d1016 100%); border: 2px solid var(--off-color); transition: background 0.6s, border-color 0.6s, box-shadow 0.6s; display: flex; align-items: center; justify-content: center; }
+  .bulb-inner { width: 60px; height: 60px; border-radius: 50%; background: var(--off-color); transition: background 0.6s, box-shadow 0.6s; }
+  body.light-on .light-bulb { background: radial-gradient(circle at 38% 35%, #fff9e0 0%, #f5c842 40%, #c89820 100%); border-color: var(--on-color); box-shadow: 0 0 40px 10px var(--on-glow), 0 0 80px 30px #f5c84222; }
+  body.light-on .bulb-inner { background: #fffbe8; box-shadow: 0 0 20px 8px #fff5c0; }
+  body.light-on .light-ring { border-color: var(--on-color); box-shadow: 0 0 12px 2px var(--on-glow); }
+  body.light-on .light-ring.r2 { box-shadow: 0 0 20px 4px #f5c84233; }
+  @keyframes pulse { 0%,100%{opacity:.25;transform:scale(1)}50%{opacity:.5;transform:scale(1.03)} }
+  body.light-on .light-ring.r3 { animation: pulse 2.5s ease-in-out infinite; }
+
+  /* Status */
+  .status-bar { display: flex; align-items: center; gap: 10px; font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; color: var(--text); letter-spacing: 0.2em; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--off-color); transition: background 0.4s, box-shadow 0.4s; }
+  body.light-on .status-dot { background: var(--on-color); box-shadow: 0 0 8px var(--on-color); }
+  .status-label { transition: color 0.4s; }
+  body.light-on .status-label { color: var(--on-color); }
+
+  /* Button */
+  .btn-wrap { position: relative; }
+  .toggle-btn { position: relative; padding: 16px 52px; font-family: 'Share Tech Mono', monospace; font-size: 0.85rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--text-bright); background: var(--panel); border: 1px solid var(--border); cursor: pointer; transition: color 0.3s, border-color 0.3s, box-shadow 0.3s; clip-path: polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%); outline: none; }
+  .toggle-btn:hover { border-color: var(--text); box-shadow: 0 0 16px #ffffff18; color: #fff; }
+  .toggle-btn:active { transform: scale(0.97); }
+  .toggle-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .corner { position: absolute; width: 8px; height: 8px; border-color: var(--text); border-style: solid; }
+  .corner.tl { top:-4px;left:-4px;border-width:1px 0 0 1px; }
+  .corner.tr { top:-4px;right:-4px;border-width:1px 1px 0 0; }
+  .corner.bl { bottom:-4px;left:-4px;border-width:0 0 1px 1px; }
+  .corner.br { bottom:-4px;right:-4px;border-width:0 1px 1px 0; }
+
+  .feedback { font-family: 'Share Tech Mono', monospace; font-size: 0.6rem; letter-spacing: 0.3em; color: transparent; transition: color 0.3s; text-transform: uppercase; min-height: 1rem; }
+  .feedback.error { color: var(--red); }
+  .feedback.ok { color: var(--text); }
+
+  /* Distance panel */
+  .distance-panel { width: 320px; background: var(--panel); border: 1px solid var(--border); padding: 20px 28px; display: flex; flex-direction: column; gap: 10px; }
+  .distance-panel .label { font-family: 'Share Tech Mono', monospace; font-size: 0.6rem; letter-spacing: 0.35em; color: var(--text); text-transform: uppercase; }
+  .distance-value { font-family: 'Share Tech Mono', monospace; font-size: 2rem; color: var(--text-bright); letter-spacing: 0.05em; transition: color 0.3s; }
+  .distance-value.active { color: #50c8e0; }
+  .distance-value.null { color: var(--text); }
+  .distance-unit { font-size: 0.9rem; color: var(--text); margin-left: 4px; }
+  .distance-ws-row { display: flex; align-items: center; gap: 8px; font-family: 'Share Tech Mono', monospace; font-size: 0.55rem; letter-spacing: 0.2em; color: var(--text); }
+  .dist-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--off-color); transition: background 0.4s, box-shadow 0.4s; }
+  .dist-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dist-dot.error { background: var(--red); box-shadow: 0 0 6px var(--red); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>Light Control Panel</h1>
+    <div class="id">NODE — 192.168.1.72 — WS</div>
+  </div>
+
+  <div class="ws-badge">
+    <div class="ws-dot" id="wsDot"></div>
+    <span id="wsLabel">CONNECTING...</span>
+  </div>
+
+  <div class="light-wrap">
+    <div class="light-ring r3"></div>
+    <div class="light-ring r2"></div>
+    <div class="light-ring r1"></div>
+    <div class="light-bulb"><div class="bulb-inner"></div></div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot"></div>
+    <span class="status-label" id="statusLabel">OFFLINE</span>
+  </div>
+
+  <div class="btn-wrap">
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+    <button class="toggle-btn" id="toggleBtn" onclick="toggle()" disabled>TOGGLE</button>
+  </div>
+
+  <div class="feedback" id="feedback"></div>
+
+  <div class="distance-panel">
+    <div class="label">Distance Sensor — ESP8266</div>
+    <div>
+      <span class="distance-value null" id="distValue">—</span><span class="distance-unit" id="distUnit"></span>
+    </div>
+    <div class="distance-ws-row">
+      <div class="dist-dot" id="distDot"></div>
+      <span id="distWsLabel">CONNECTING...</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const WS_URL = `ws://${window.location.hostname}:${window.location.port}/ws`;
+
+  const toggleBtn   = document.getElementById('toggleBtn');
+  const feedback    = document.getElementById('feedback');
+  const statusLabel = document.getElementById('statusLabel');
+  const wsDot       = document.getElementById('wsDot');
+  const wsLabel     = document.getElementById('wsLabel');
+
+  let ws = null;
+  let lightState = false;
+
+  function applyState(isOn) {
+    lightState = isOn;
+    document.body.classList.toggle('light-on', isOn);
+    statusLabel.textContent = isOn ? 'ACTIVE' : 'STANDBY';
+  }
+
+  function setFeedback(msg, isError) {
+    feedback.textContent = msg;
+    feedback.className = 'feedback ' + (isError ? 'error' : 'ok');
+    setTimeout(() => { feedback.textContent = ''; feedback.className = 'feedback'; }, 3000);
+  }
+
+  function connect() {
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+      wsDot.className = 'ws-dot connected';
+      wsLabel.textContent = 'CONNECTED';
+      toggleBtn.disabled = false;
+      setFeedback('SOCKET OPEN', false);
+    };
+
+    ws.onmessage = (e) => {
+      const msg = e.data.trim().toLowerCase();
+
+      // Expect plain "ON" / "OFF" from the socket
+      if (msg === 'on') {
+        applyState(true);
+      } else if (msg === 'off') {
+        applyState(false);
+      }
+    };
+
+    ws.onclose = () => {
+      wsDot.className = 'ws-dot error';
+      wsLabel.textContent = 'DISCONNECTED';
+      toggleBtn.disabled = true;
+      setFeedback('CONNECTION LOST — RETRYING...', true);
+      setTimeout(connect, 3000); // auto-reconnect
+    };
+
+    ws.onerror = () => {
+      wsDot.className = 'ws-dot error';
+      wsLabel.textContent = 'ERROR';
+      setFeedback('SOCKET ERROR', true);
+    };
+  }
+
+  function toggle() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      setFeedback('NOT CONNECTED', true);
+      return;
+    }
+    // Send the desired next state to the server as JSON
+    const next = !lightState;
+    ws.send(JSON.stringify({ light: next }));
+    setFeedback('COMMAND SENT', false);
+  }
+
+  connect();
+
+  // ── Distance sensor WebSocket ─────────────────────────────────────────────
+  const DIST_URL = `ws://${window.location.hostname}:${window.location.port}/distance`;
+
+  const distValue  = document.getElementById('distValue');
+  const distUnit   = document.getElementById('distUnit');
+  const distDot    = document.getElementById('distDot');
+  const distWsLabel = document.getElementById('distWsLabel');
+
+  let distWs = null;
+
+  function updateDistance(value) {
+    if (value === null || value === undefined) {
+      distValue.textContent = 'OUT OF RANGE';
+      distValue.className = 'distance-value null';
+      distUnit.textContent = '';
+      console.log('[Distance] Out of range / no object detected');
+    } else {
+      distValue.textContent = value.toFixed(1);
+      distValue.className = 'distance-value active';
+      distUnit.textContent = 'cm';
+      console.log(`[Distance] ${value.toFixed(1)} cm`);
+    }
+  }
+
+  function connectDistance() {
+    distWs = new WebSocket(DIST_URL);
+
+    distWs.onopen = () => {
+      distDot.className = 'dist-dot connected';
+      distWsLabel.textContent = 'LIVE';
+      console.log('[Distance WS] Connected');
+    };
+
+    distWs.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if ('distance' in data) {
+          updateDistance(data.distance);
+        }
+      } catch (err) {
+        console.warn('[Distance WS] Parse error:', err);
+      }
+    };
+
+    distWs.onclose = () => {
+      distDot.className = 'dist-dot error';
+      distWsLabel.textContent = 'DISCONNECTED — RETRYING...';
+      console.warn('[Distance WS] Disconnected, retrying in 3s');
+      setTimeout(connectDistance, 3000);
+    };
+
+    distWs.onerror = () => {
+      distDot.className = 'dist-dot error';
+      distWsLabel.textContent = 'ERROR';
+      console.error('[Distance WS] Socket error');
+    };
+  }
+
+  connectDistance();
+</script>
+</body>
+</html>
